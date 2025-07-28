@@ -319,6 +319,9 @@ def generate_optimization_parameters(n_candidates: int) -> Tuple[np.ndarray, np.
         PI_E_RATIO * UNIVERSAL, # π ≈ 3.14 (π-scaling region)
     ]
 
+    # Added low rate center to sample for higher density scores
+    rate_centers.append(UNIVERSAL / 10)
+
     # Generate rate samples around each center
     rates = []
     samples_per_center = n_candidates // len(rate_centers)
@@ -332,7 +335,7 @@ def generate_optimization_parameters(n_candidates: int) -> Tuple[np.ndarray, np.
     # Fill remaining slots with uniform samples
     remaining = n_candidates - len(rates)
     if remaining > 0:
-        uniform_samples = np.random.uniform(UNIVERSAL/3, UNIVERSAL*2, remaining)
+        uniform_samples = np.random.uniform(0.1, UNIVERSAL*2, remaining)
         rates.extend(uniform_samples)
 
     rates = np.array(rates[:n_candidates])
@@ -411,7 +414,7 @@ def optimize_parameters(n_points: int = DEFAULT_N_POINTS,
     # Generate parameter combinations
     rates, frequencies = generate_optimization_parameters(n_candidates)
 
-    # Prepare params for parallel map
+    # Prepare params for parallel
     params = [(rate, freq, n_array, frame_shifts, prime_mask) for rate, freq in zip(rates, frequencies)]
 
     # Evaluate in parallel
@@ -542,7 +545,7 @@ def plot_3d_prime_distribution(rate: float, freq: float, n_points: int,
     plt.show()
 
 def visualize_top_results(results: List[Dict[str, Any]], n_points: int, n_array: np.ndarray,
-                          frame_shifts: np.ndarray, prime_mask: np.ndarray, max_plots: int = 3):
+                          frame_shifts: np.ndarray, prime_mask: np.ndarray, max_plots: int = 10):
     """
     Generate comprehensive visualizations for top optimization results.
 
@@ -559,9 +562,10 @@ def visualize_top_results(results: List[Dict[str, Any]], n_points: int, n_array:
 
     # 3D plots for top results
     for i, result in enumerate(results[:max_plots], 1):
-        rate, freq = result['rate'], result['freq']
-        title = f"#{i}: Rate/e={rate/UNIVERSAL:.3f}, freq={freq:.3f}, score={result['score']:.6f}"
-        plot_3d_prime_distribution(rate, freq, n_points, n_array, frame_shifts, prime_mask, title)
+        if result['score'] > 0.0035:
+            rate, freq = result['rate'], result['freq']
+            title = f"#{i}: Rate/e={rate/UNIVERSAL:.3f}, freq={freq:.3f}, score={result['score']:.6f}"
+            plot_3d_prime_distribution(rate, freq, n_points, n_array, frame_shifts, prime_mask, title)
 
 # ============================================================================
 # MAIN ANALYSIS FUNCTION
@@ -626,7 +630,7 @@ def run_analysis(n_points: int = DEFAULT_N_POINTS,
     if verbose:
         print("\nGenerating visualizations...")
 
-    visualize_top_results(results, n_points, n_array, frame_shifts, prime_mask)
+    visualize_top_results(results, n_points, n_array, frame_shifts, prime_mask, max_plots=10)
 
     # Prepare return data
     analysis_results = {
