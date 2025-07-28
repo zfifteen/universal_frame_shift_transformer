@@ -8,11 +8,10 @@ to a CSV file, based on the discrete domain Universal Form: Z = n(Δₙ/Δₘₐ
 
 Author: [Author Name]
 Date: [Date]
-Version: 1.4 (Using UniversalFrameShift Class)
+Version: 1.3 (Z Data Export)
 
 Changes:
 - Computes frame shifts and Z = n * Δₙ (with Δₘₐₓ implicitly 1 after clipping)
-- Uses UniversalFrameShift class for Z computation
 - Exports to CSV for first 1,000,000 primes
 - Exits with summary statistics
 
@@ -27,7 +26,7 @@ import math
 import numpy as np
 import csv
 import time
-from typing import Union
+from typing import Tuple
 
 # ============================================================================
 # UNIVERSAL CONSTANTS AND PARAMETERS
@@ -35,77 +34,6 @@ from typing import Union
 
 N_PRIMES_TARGET = 1000000
 N_POINTS = 15485863  # The 1,000,000th prime; set to include exactly or more
-DELTA_MAX = 1.0  # Theoretical maximum frame shift after clipping
-
-# ============================================================================
-# CORE UNIVERSAL FRAME SHIFT IMPLEMENTATION
-# ============================================================================
-
-class UniversalFrameShift:
-    """
-    Implements the Universal Form: Z = A(B/C)
-
-    In discrete domain: Z = n(Δₙ/Δₘₐₓ)
-    Provides bidirectional transformation between observer and universal frames.
-    Supports scalar and array inputs.
-    """
-
-    def __init__(self, rate: float, invariant_limit: float = math.e):
-        """
-        Initialize Universal Frame Shift transformer.
-
-        Args:
-            rate: Domain-specific rate parameter (B in universal form)
-            invariant_limit: Universal invariant constant (C in universal form)
-
-        Raises:
-            ValueError: If rate is zero or negative
-        """
-        if rate <= 0:
-            raise ValueError("Rate must be positive")
-
-        self._rate = rate
-        self._invariant_limit = invariant_limit
-        self._correction_factor = rate / invariant_limit
-
-    @property
-    def rate(self) -> float:
-        """Get the rate parameter."""
-        return self._rate
-
-    @property
-    def invariant_limit(self) -> float:
-        """Get the invariant limit."""
-        return self._invariant_limit
-
-    @property
-    def correction_factor(self) -> float:
-        """Get the computed correction factor."""
-        return self._correction_factor
-
-    def transform(self, observed_quantity: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
-        """
-        Transform from observer frame to universal frame.
-
-        Args:
-            observed_quantity: Value(s) measured in observer frame (scalar or array)
-
-        Returns:
-            Corresponding value(s) in universal coordinates
-        """
-        return observed_quantity * self._correction_factor
-
-    def inverse_transform(self, universal_quantity: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
-        """
-        Transform from universal frame back to observer frame.
-
-        Args:
-            universal_quantity: Value(s) in universal coordinates (scalar or array)
-
-        Returns:
-            Corresponding value(s) in observer frame
-        """
-        return universal_quantity / self._correction_factor
 
 # ============================================================================
 # MATHEMATICAL UTILITIES
@@ -187,13 +115,8 @@ def run_analysis(verbose: bool = True) -> dict:
     primes = n_array[prime_mask][:N_PRIMES_TARGET]
     prime_shifts = frame_shifts[prime_mask][:N_PRIMES_TARGET]
 
-    # Compute Z using UniversalFrameShift class
-    z_values = []
-    for p, d in zip(primes, prime_shifts):
-        transformer = UniversalFrameShift(rate=d, invariant_limit=DELTA_MAX)
-        z = transformer.transform(float(p))  # Cast to float for consistency
-        z_values.append(z)
-    z_values = np.array(z_values)
+    # Compute Z = n * Δₙ (Δₘₐₓ=1)
+    z_values = primes * prime_shifts
 
     # Write to CSV
     csv_filename = 'prime_z_data.csv'
