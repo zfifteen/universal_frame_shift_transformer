@@ -21,12 +21,13 @@ from dash import dcc, html, Input, Output, State
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from scipy.spatial import KDTree
+from sympy.stats.sampling.sample_scipy import scipy
 
 # ============================================================================
 # UNIVERSAL CONSTANTS AND CONFIGURATIONS
 # ============================================================================
 
-UNIVERSAL = math.e
+UNIVERSAL = scipy.constants.c
 PHI = (1 + math.sqrt(5)) / 2
 PI_E_RATIO = math.pi / math.e
 
@@ -35,13 +36,13 @@ PRESET_CONFIGS = {
     'π-Region Optimal': {
         'rate': 0.61,
         'freq': 0.091,
-        'n_points': 3000,
+        'n_points': 10000,
         'description': 'Top π-region configuration showing 35x prime density improvement with clear helical clustering'
     },
     'Golden Ratio Scaling': {
         'rate': UNIVERSAL / PHI,
         'freq': 0.1,
-        'n_points': 2000,
+        'n_points': 10000,
         'description': 'Configuration focused on φ (golden ratio) scaling with secondary clustering patterns'
     },
     'Identity Transformation': {
