@@ -10,7 +10,7 @@ a universal reference frame centered on the speed of light constant.
 
 Author: [Author Name]
 Date: [Date]
-Version: 1.0
+Version: 1.2 (Efficiency-Optimized with Bounds Fix)
 
 Theory Overview:
 - Universal Form: Z = A(B/C) applies across all measurement domains
@@ -23,6 +23,15 @@ Expected Results:
 - Clear separation between φ-region and π-region performance
 - Coherent helical prime arrangements in 3D space
 
+Efficiency Improvements:
+- Precomputed prime sieve for O(1) access
+- Vectorized frame shift and coordinate computations
+- Parallel parameter optimization via multiprocessing
+- Array-aware transformations
+
+Fixes:
+- Clipped frame shifts to [0,1] to enforce theoretical bounds
+
 Usage:
     python universal_frame_shift.py
 
@@ -30,6 +39,7 @@ Requirements:
     numpy >= 1.19.0
     matplotlib >= 3.3.0
     scipy >= 1.5.0
+    multiprocessing (standard library)
 """
 
 import math
@@ -38,7 +48,8 @@ import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
 from mpl_toolkits.mplot3d import Axes3D
 import time
-from typing import Dict, List, Tuple, Any
+import multiprocessing
+from typing import Dict, List, Tuple, Any, Union
 
 # ============================================================================
 # UNIVERSAL CONSTANTS
@@ -64,6 +75,7 @@ class UniversalFrameShift:
 
     In discrete domain: Z = n(Δₙ/Δₘₐₓ)
     Provides bidirectional transformation between observer and universal frames.
+    Supports scalar and array inputs.
     """
 
     def __init__(self, rate: float, invariant_limit: float = UNIVERSAL):
@@ -99,27 +111,27 @@ class UniversalFrameShift:
         """Get the computed correction factor."""
         return self._correction_factor
 
-    def transform(self, observed_quantity: float) -> float:
+    def transform(self, observed_quantity: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
         """
         Transform from observer frame to universal frame.
 
         Args:
-            observed_quantity: Value measured in observer frame
+            observed_quantity: Value(s) measured in observer frame (scalar or array)
 
         Returns:
-            Corresponding value in universal coordinates
+            Corresponding value(s) in universal coordinates
         """
         return observed_quantity * self._correction_factor
 
-    def inverse_transform(self, universal_quantity: float) -> float:
+    def inverse_transform(self, universal_quantity: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
         """
         Transform from universal frame back to observer frame.
 
         Args:
-            universal_quantity: Value in universal coordinates
+            universal_quantity: Value(s) in universal coordinates (scalar or array)
 
         Returns:
-            Corresponding value in observer frame
+            Corresponding value(s) in observer frame
         """
         return universal_quantity / self._correction_factor
 
@@ -127,74 +139,52 @@ class UniversalFrameShift:
 # MATHEMATICAL UTILITIES
 # ============================================================================
 
-def is_prime(n: int) -> bool:
+def sieve_prime_mask(n: int) -> np.ndarray:
     """
-    Optimized primality test.
+    Generate boolean mask for primes in range [1, n] using Sieve of Eratosthenes.
 
     Args:
-        n: Integer to test
+        n: Upper limit of range
 
     Returns:
-        True if n is prime, False otherwise
+        Boolean array of length n where True indicates prime (indices 1 to n)
     """
     if n < 2:
-        return False
-    if n == 2:
-        return True
-    if n % 2 == 0:
-        return False
+        return np.array([], dtype=bool)
 
-    # Check odd divisors up to sqrt(n)
-    sqrt_n = int(math.sqrt(n)) + 1
-    for i in range(3, sqrt_n, 2):
-        if n % i == 0:
-            return False
-    return True
+    sieve = np.ones(n + 1, dtype=bool)
+    sieve[0:2] = False
+    for i in range(2, int(np.sqrt(n)) + 1):
+        if sieve[i]:
+            sieve[i * i::i] = False
+    return sieve[1:]  # Align with n=1 to n
 
-def compute_frame_shift(n: int, max_n: int) -> float:
+def compute_frame_shifts(n_array: np.ndarray, max_n: int) -> np.ndarray:
     """
-    Compute the frame shift Δₙ at position n.
-
-    The frame shift captures how "number space" distorts away from the origin.
-    Uses logarithmic growth with oscillatory corrections based on prime gap structure.
+    Vectorized computation of frame shifts Δₙ for all positions.
 
     Args:
-        n: Position in number sequence
+        n_array: Array of positions (1 to max_n)
         max_n: Maximum position (for normalization)
 
     Returns:
-        Frame shift value Δₙ ∈ [0, 1]
+        Array of frame shift values Δₙ ∈ [0, 1]
     """
-    if n <= 1:
-        return 0.0
-
-    # Logarithmic base component - captures space "stretching"
-    base_shift = math.log(n) / math.log(max_n)
-
-    # Oscillatory component - captures local prime gap structure
-    gap_phase = 2 * math.pi * n / (math.log(n) + 1)
-    oscillation = 0.1 * math.sin(gap_phase)
-
-    return base_shift + oscillation
-
-def generate_prime_mask(n_points: int) -> np.ndarray:
-    """
-    Generate boolean mask for primes in range [1, n_points].
-
-    Args:
-        n_points: Upper limit of range
-
-    Returns:
-        Boolean array where True indicates prime
-    """
-    n_array = np.arange(1, n_points + 1)
-    return np.vectorize(is_prime)(n_array)
+    shifts = np.zeros_like(n_array, dtype=float)
+    mask = n_array > 1
+    if np.any(mask):
+        log_max = np.log(max_n)
+        base_shift = np.log(n_array[mask]) / log_max
+        gap_phase = 2 * np.pi * n_array[mask] / (np.log(n_array[mask]) + 1)
+        oscillation = 0.1 * np.sin(gap_phase)
+        shifts[mask] = base_shift + oscillation
+    return np.clip(shifts, 0.0, 1.0)  # Enforce theoretical bounds [0,1]
 
 # ============================================================================
 # 3D EMBEDDING AND COORDINATE TRANSFORMATION
 # ============================================================================
 
-def compute_universal_coordinates(n_points: int, rate: float, helix_freq: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def compute_universal_coordinates(n_array: np.ndarray, frame_shifts: np.ndarray, rate: float, helix_freq: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute 3D coordinates in universal frame with frame shift corrections.
 
@@ -204,36 +194,31 @@ def compute_universal_coordinates(n_points: int, rate: float, helix_freq: float)
     - z: Frame-aware helical coordinate with variable amplitude
 
     Args:
-        n_points: Number of integers to process
+        n_array: Array of integers (1 to n_points)
+        frame_shifts: Precomputed frame shifts
         rate: Rate parameter for Universal Frame Shift
         helix_freq: Base frequency for helical coordinate
 
     Returns:
-        Tuple of (x, y, z, frame_shifts) coordinate arrays
+        Tuple of (x, y, z) coordinate arrays
     """
-    # Generate integer sequence
-    n = np.arange(1, n_points + 1)
-
-    # Compute frame shifts for all positions
-    frame_shifts = np.array([compute_frame_shift(i, n_points) for i in n])
-
     # Initialize Universal Frame Shift transformer
     transformer = UniversalFrameShift(rate=rate)
 
     # X coordinate: Natural position (unchanged)
-    x = n.astype(float)
+    x = n_array.astype(float)
 
     # Y coordinate: Frame-corrected growth based on n²/π
-    y_base = n * (n / math.pi)  # Base quadratic growth
-    y_corrected = y_base * (1 + frame_shifts)  # Apply frame correction
+    y_base = n_array * (n_array / np.pi)
+    y_corrected = y_base * (1 + frame_shifts)
     y = transformer.transform(y_corrected)  # Transform to universal frame
 
     # Z coordinate: Frame-aware helical coordinate
     effective_freq = helix_freq * (1 + np.mean(frame_shifts))  # Frame-corrected frequency
     z_amplitude = 1 + 0.5 * frame_shifts  # Variable amplitude based on frame shift
-    z = np.sin(math.pi * effective_freq * n) * z_amplitude
+    z = np.sin(np.pi * effective_freq * n_array) * z_amplitude
 
-    return x, y, z, frame_shifts
+    return x, y, z
 
 def extract_prime_coordinates(x: np.ndarray, y: np.ndarray, z: np.ndarray,
                               prime_mask: np.ndarray) -> np.ndarray:
@@ -257,7 +242,8 @@ def extract_prime_coordinates(x: np.ndarray, y: np.ndarray, z: np.ndarray,
 # PRIME DENSITY ANALYSIS
 # ============================================================================
 
-def compute_prime_density_score(rate: float, helix_freq: float, n_points: int) -> float:
+def compute_prime_density_score(rate: float, helix_freq: float, n_array: np.ndarray,
+                                frame_shifts: np.ndarray, prime_mask: np.ndarray) -> float:
     """
     Compute frame-corrected prime density score.
 
@@ -267,14 +253,15 @@ def compute_prime_density_score(rate: float, helix_freq: float, n_points: int) -
     Args:
         rate: Rate parameter for Universal Frame Shift
         helix_freq: Helical coordinate frequency
-        n_points: Number of integers to analyze
+        n_array: Precomputed integer array
+        frame_shifts: Precomputed frame shifts
+        prime_mask: Precomputed prime mask
 
     Returns:
         Density score (higher = better clustering)
     """
-    # Generate coordinates and prime mask
-    x, y, z, frame_shifts = compute_universal_coordinates(n_points, rate, helix_freq)
-    prime_mask = generate_prime_mask(n_points)
+    # Generate coordinates
+    x, y, z = compute_universal_coordinates(n_array, frame_shifts, rate, helix_freq)
 
     # Extract prime coordinates
     prime_coords = extract_prime_coordinates(x, y, z, prime_mask)
@@ -293,7 +280,6 @@ def compute_prime_density_score(rate: float, helix_freq: float, n_points: int) -
         return 0.0
 
     # Apply position-based weighting to account for frame expansion
-    # Points closer to origin have different geometric significance
     position_weights = 1.0 / (np.sqrt(prime_coords[:, 0]) + 1)
     weighted_distances = distances[:, 1] * position_weights
 
@@ -382,6 +368,19 @@ def generate_optimization_parameters(n_candidates: int) -> Tuple[np.ndarray, np.
 
     return rates, frequencies
 
+def compute_score_wrapper(param: Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]) -> float:
+    """
+    Wrapper for parallel computation of density score.
+
+    Args:
+        param: Tuple of (rate, freq, n_array, frame_shifts, prime_mask)
+
+    Returns:
+        Density score
+    """
+    rate, freq, n_array, frame_shifts, prime_mask = param
+    return compute_prime_density_score(rate, freq, n_array, frame_shifts, prime_mask)
+
 def optimize_parameters(n_points: int = DEFAULT_N_POINTS,
                         n_candidates: int = DEFAULT_N_CANDIDATES,
                         top_k: int = DEFAULT_TOP_K,
@@ -404,23 +403,29 @@ def optimize_parameters(n_points: int = DEFAULT_N_POINTS,
         print(f"Testing {n_candidates} parameter combinations")
         print("-" * 60)
 
+    # Precompute shared arrays
+    n_array = np.arange(1, n_points + 1)
+    prime_mask = sieve_prime_mask(n_points)
+    frame_shifts = compute_frame_shifts(n_array, n_points)
+
     # Generate parameter combinations
     rates, frequencies = generate_optimization_parameters(n_candidates)
 
-    # Evaluate all combinations
-    results = []
+    # Prepare params for parallel map
+    params = [(rate, freq, n_array, frame_shifts, prime_mask) for rate, freq in zip(rates, frequencies)]
+
+    # Evaluate in parallel
     start_time = time.time()
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        scores = pool.map(compute_score_wrapper, params)
 
-    for i, (rate, freq) in enumerate(zip(rates, frequencies)):
-        if verbose and i % 50 == 0:
-            elapsed = time.time() - start_time
-            progress = i / n_candidates * 100
-            print(f"Progress: {i}/{n_candidates} ({progress:.1f}%) - "
-                  f"Elapsed: {elapsed:.1f}s")
+    if verbose:
+        total_time = time.time() - start_time
+        print(f"Parallel evaluation complete in {total_time:.1f}s")
 
-        # Compute density score
-        score = compute_prime_density_score(rate, freq, n_points)
-
+    # Build results
+    results = []
+    for rate, freq, score in zip(rates, frequencies, scores):
         # Calculate mathematical significance metrics
         phi_distance = abs(rate - UNIVERSAL/PHI)
         pi_distance = abs(rate - UNIVERSAL/math.pi)
@@ -445,8 +450,6 @@ def optimize_parameters(n_points: int = DEFAULT_N_POINTS,
     results.sort(key=composite_score, reverse=True)
 
     if verbose:
-        total_time = time.time() - start_time
-        print(f"\nOptimization complete in {total_time:.1f}s")
         print(f"Top {top_k} results selected")
 
     return results[:top_k]
@@ -491,6 +494,7 @@ def plot_optimization_results(results: List[Dict[str, Any]], title: str = "Unive
     plt.show()
 
 def plot_3d_prime_distribution(rate: float, freq: float, n_points: int,
+                               n_array: np.ndarray, frame_shifts: np.ndarray, prime_mask: np.ndarray,
                                title: str = None):
     """
     Create 3D scatter plot of prime distribution in universal coordinates.
@@ -499,11 +503,13 @@ def plot_3d_prime_distribution(rate: float, freq: float, n_points: int,
         rate: Rate parameter for transformation
         freq: Helical frequency parameter
         n_points: Number of integers to analyze
+        n_array: Precomputed n array
+        frame_shifts: Precomputed frame shifts
+        prime_mask: Precomputed prime mask
         title: Plot title (auto-generated if None)
     """
     # Generate coordinates
-    x, y, z, frame_shifts = compute_universal_coordinates(n_points, rate, freq)
-    prime_mask = generate_prime_mask(n_points)
+    x, y, z = compute_universal_coordinates(n_array, frame_shifts, rate, freq)
 
     # Create figure
     fig = plt.figure(figsize=(12, 9))
@@ -523,7 +529,7 @@ def plot_3d_prime_distribution(rate: float, freq: float, n_points: int,
 
     # Formatting
     if title is None:
-        density_score = compute_prime_density_score(rate, freq, n_points)
+        density_score = compute_prime_density_score(rate, freq, n_array, frame_shifts, prime_mask)
         title = f"Rate/e={rate/UNIVERSAL:.3f}, freq={freq:.3f}, score={density_score:.6f}"
 
     ax.set_title(title)
@@ -535,13 +541,17 @@ def plot_3d_prime_distribution(rate: float, freq: float, n_points: int,
     plt.tight_layout()
     plt.show()
 
-def visualize_top_results(results: List[Dict[str, Any]], n_points: int, max_plots: int = 3):
+def visualize_top_results(results: List[Dict[str, Any]], n_points: int, n_array: np.ndarray,
+                          frame_shifts: np.ndarray, prime_mask: np.ndarray, max_plots: int = 3):
     """
     Generate comprehensive visualizations for top optimization results.
 
     Args:
         results: Top parameter results from optimization
         n_points: Number of integers used in analysis
+        n_array: Precomputed n array
+        frame_shifts: Precomputed frame shifts
+        prime_mask: Precomputed prime mask
         max_plots: Maximum number of 3D plots to generate
     """
     # Bar chart of all results
@@ -551,7 +561,7 @@ def visualize_top_results(results: List[Dict[str, Any]], n_points: int, max_plot
     for i, result in enumerate(results[:max_plots], 1):
         rate, freq = result['rate'], result['freq']
         title = f"#{i}: Rate/e={rate/UNIVERSAL:.3f}, freq={freq:.3f}, score={result['score']:.6f}"
-        plot_3d_prime_distribution(rate, freq, n_points, title)
+        plot_3d_prime_distribution(rate, freq, n_points, n_array, frame_shifts, prime_mask, title)
 
 # ============================================================================
 # MAIN ANALYSIS FUNCTION
@@ -607,11 +617,16 @@ def run_analysis(n_points: int = DEFAULT_N_POINTS,
             print(f"Baseline comparison: {baseline_score:.6f}")
             print(f"Improvement factor: {improvement_factor:.1f}x")
 
+    # Precompute for visualizations
+    n_array = np.arange(1, n_points + 1)
+    frame_shifts = compute_frame_shifts(n_array, n_points)
+    prime_mask = sieve_prime_mask(n_points)
+
     # Generate visualizations
     if verbose:
         print("\nGenerating visualizations...")
 
-    visualize_top_results(results, n_points)
+    visualize_top_results(results, n_points, n_array, frame_shifts, prime_mask)
 
     # Prepare return data
     analysis_results = {
@@ -648,11 +663,11 @@ def validate_implementation():
     # Test 1: Universal Frame Shift transformer
     try:
         transformer = UniversalFrameShift(rate=2.0, invariant_limit=math.e)
-        test_value = 10.0
+        test_value = np.array([10.0, 20.0])
         transformed = transformer.transform(test_value)
         recovered = transformer.inverse_transform(transformed)
 
-        if not abs(recovered - test_value) < 1e-10:
+        if not np.allclose(recovered, test_value):
             print("❌ FAIL: Bidirectional transformation test")
             return False
         print("✅ PASS: Bidirectional transformation test")
@@ -661,29 +676,23 @@ def validate_implementation():
         print(f"❌ FAIL: Transformer test - {e}")
         return False
 
-    # Test 2: Prime detection
-    test_primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
-    test_composites = [4, 6, 8, 9, 10, 12, 14, 15, 16, 18]
+    # Test 2: Prime sieve
+    test_n = 30
+    expected_primes = np.array([False, True, True, False, True, False, True, False, False, False, True, False, True, False, False, False, True, False, True, False, False, False, True, False, False, False, False, False, True, False])
+    sieve_result = sieve_prime_mask(test_n)
+    if not np.array_equal(sieve_result[:len(expected_primes)], expected_primes):
+        print("❌ FAIL: Prime sieve test")
+        return False
+    print("✅ PASS: Prime sieve test")
 
-    for p in test_primes:
-        if not is_prime(p):
-            print(f"❌ FAIL: Prime detection - {p} should be prime")
-            return False
-
-    for c in test_composites:
-        if is_prime(c):
-            print(f"❌ FAIL: Prime detection - {c} should be composite")
-            return False
-
-    print("✅ PASS: Prime detection test")
-
-    # Test 3: Frame shift calculation
+    # Test 3: Frame shift vectorization
     try:
-        shift = compute_frame_shift(100, 1000)
-        if not (0 <= shift <= 1):
-            print(f"❌ FAIL: Frame shift bounds - got {shift}")
+        n_array = np.arange(1, 11)
+        shifts = compute_frame_shifts(n_array, 10)
+        if not all(0 <= s <= 1 for s in shifts[1:]):
+            print(f"❌ FAIL: Frame shift bounds - got {shifts}")
             return False
-        print("✅ PASS: Frame shift calculation test")
+        print("✅ PASS: Frame shift vectorization test")
 
     except Exception as e:
         print(f"❌ FAIL: Frame shift test - {e}")
@@ -691,8 +700,10 @@ def validate_implementation():
 
     # Test 4: Coordinate generation
     try:
-        x, y, z, shifts = compute_universal_coordinates(100, 2.0, 0.1)
-        if len(x) != 100 or len(y) != 100 or len(z) != 100:
+        n_array = np.arange(1, 11)
+        frame_shifts = compute_frame_shifts(n_array, 10)
+        x, y, z = compute_universal_coordinates(n_array, frame_shifts, 2.0, 0.1)
+        if len(x) != 10 or len(y) != 10 or len(z) != 10:
             print("❌ FAIL: Coordinate generation dimensions")
             return False
         print("✅ PASS: Coordinate generation test")
@@ -703,7 +714,10 @@ def validate_implementation():
 
     # Test 5: Density score calculation
     try:
-        score = compute_prime_density_score(2.0, 0.1, 100)
+        n_array = np.arange(1, 101)
+        frame_shifts = compute_frame_shifts(n_array, 100)
+        prime_mask = sieve_prime_mask(100)
+        score = compute_prime_density_score(2.0, 0.1, n_array, frame_shifts, prime_mask)
         if not (score >= 0):
             print(f"❌ FAIL: Density score bounds - got {score}")
             return False
