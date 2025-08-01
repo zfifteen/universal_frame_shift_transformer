@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometric Z-Prime Visualization</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            display: flex;
+            min-height: 600px;
+        }
+        
+        .sidebar {
+            width: 300px;
+            padding: 30px;
+            background-color: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+        }
+        
+        .main-content {
+            flex: 1;
+            padding: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .plot-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .plot-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .stats {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .stats h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            padding: 12px;
+            margin-top: 15px;
+        }
+        
+        .description {
+            margin-bottom: 25px;
+            padding: 15px;
+            background-color: #e7f3ff;
+            border-left: 4px solid #667eea;
+            border-radius: 0 4px 4px 0;
+        }
+        
+        .parameter-group {
+            margin-bottom: 25px;
+        }
+        
+        .parameter-group h4 {
+            margin: 0 0 15px 0;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+            padding-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Geometric Z-Prime Visualization</h1>
+            <p>Interactive visualization of prime number distributions through geometric projections</p>
+        </div>
+        
+        <div class="content">
+            <div class="sidebar">
+                <div class="description">
+                    <h4>About this visualization</h4>
+                    <p>This tool visualizes prime numbers using the Universal Frame Shift theory, revealing geometric patterns and clustering through Z-projections and density analysis.</p>
+                </div>
+                
+                <form id="paramForm">
+                    <div class="parameter-group">
+                        <h4>Analysis Parameters</h4>
+                        
+                        <div class="form-group">
+                            <label for="N">Range (N):</label>
+                            <input type="number" id="N" name="N" value="{{ params.N }}" min="1000" max="100000" step="1000">
+                            <small>Maximum number to analyze (1K - 100K)</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="K">Exponent (K):</label>
+                            <input type="number" id="K" name="K" value="{{ params.K }}" min="0.1" max="2.0" step="0.1">
+                            <small>Z scaling exponent</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="DENSITY_THRESHOLD">Density Threshold:</label>
+                            <input type="number" id="DENSITY_THRESHOLD" name="DENSITY_THRESHOLD" value="{{ params.DENSITY_THRESHOLD }}" min="10" max="1000" step="1">
+                            <small>Number of top density points</small>
+                        </div>
+                    </div>
+                    
+                    <div class="parameter-group">
+                        <h4>Frequency Parameters</h4>
+                        
+                        <div class="form-group">
+                            <label for="FREQ_BASE">Base Frequency:</label>
+                            <input type="number" id="FREQ_BASE" name="FREQ_BASE" value="{{ params.FREQ_BASE }}" min="1" max="100" step="1">
+                            <small>Base frequency multiplier</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="EARTH_OMEGA">Earth Omega:</label>
+                            <input type="number" id="EARTH_OMEGA" name="EARTH_OMEGA" value="{{ params.EARTH_OMEGA }}" min="1" max="100" step="1">
+                            <small>Earth's rotational frequency (rad/s)</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="NEAREST_K">Nearest K:</label>
+                            <input type="number" id="NEAREST_K" name="NEAREST_K" value="{{ params.NEAREST_K }}" min="3" max="20" step="1">
+                            <small>Number of nearest neighbors</small>
+                        </div>
+                    </div>
+                    
+                    <div class="parameter-group">
+                        <h4>Visualization Parameters</h4>
+                        
+                        <div class="form-group">
+                            <label for="ALPHA">Transparency (Alpha):</label>
+                            <input type="number" id="ALPHA" name="ALPHA" value="{{ params.ALPHA }}" min="0.1" max="1.0" step="0.1">
+                            <small>3D scatter point transparency</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="SIZE_3D">3D Point Size:</label>
+                            <input type="number" id="SIZE_3D" name="SIZE_3D" value="{{ params.SIZE_3D }}" min="1" max="20" step="1">
+                            <small>Size of 3D scatter points</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="SIZE_2D">2D Point Size:</label>
+                            <input type="number" id="SIZE_2D" name="SIZE_2D" value="{{ params.SIZE_2D }}" min="10" max="100" step="5">
+                            <small>Size of 2D scatter points</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="ELEV">Elevation:</label>
+                            <input type="number" id="ELEV" name="ELEV" value="{{ params.ELEV }}" min="-90" max="90" step="5">
+                            <small>3D plot elevation angle</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="AZIM">Azimuth:</label>
+                            <input type="number" id="AZIM" name="AZIM" value="{{ params.AZIM }}" min="-180" max="180" step="5">
+                            <small>3D plot azimuth angle</small>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn" id="drawBtn">
+                        <span id="btnText">Draw</span>
+                    </button>
+                </form>
+            </div>
+            
+            <div class="main-content">
+                <div id="loading" class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>Generating visualization...</p>
+                </div>
+                
+                <div id="plotContainer" class="plot-container">
+                    <p style="color: #6c757d; font-style: italic;">
+                        Adjust the parameters on the left and click "Draw" to generate the visualization.
+                    </p>
+                </div>
+                
+                <div id="errorContainer"></div>
+                
+                <div id="statsContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('paramForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('drawBtn');
+            const btnText = document.getElementById('btnText');
+            const loading = document.getElementById('loading');
+            const plotContainer = document.getElementById('plotContainer');
+            const errorContainer = document.getElementById('errorContainer');
+            const statsContainer = document.getElementById('statsContainer');
+            
+            // Show loading state
+            btn.disabled = true;
+            btnText.textContent = 'Generating...';
+            loading.style.display = 'block';
+            plotContainer.innerHTML = '';
+            errorContainer.innerHTML = '';
+            statsContainer.innerHTML = '';
+            
+            try {
+                const formData = new FormData(this);
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Display plot
+                    plotContainer.innerHTML = `<img src="data:image/png;base64,${result.image}" alt="Geometric Z-Prime Visualization">`;
+                    
+                    // Display statistics
+                    const stats = result.stats;
+                    statsContainer.innerHTML = `
+                        <div class="stats">
+                            <h4>Analysis Results</h4>
+                            <div class="stats-grid">
+                                <div><strong>Total Numbers:</strong> ${stats.total_numbers.toLocaleString()}</div>
+                                <div><strong>Total Primes:</strong> ${stats.total_primes.toLocaleString()}</div>
+                                <div><strong>Prime Candidates:</strong> ${stats.prime_candidates}</div>
+                                <div><strong>Max Density:</strong> ${stats.density_max.toFixed(6)}</div>
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <strong>Top Prime Candidates:</strong> ${stats.prime_candidates_list.join(', ')}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // Display error
+                    errorContainer.innerHTML = `<div class="error">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                errorContainer.innerHTML = `<div class="error">Network error: ${error.message}</div>`;
+            } finally {
+                // Hide loading state
+                btn.disabled = false;
+                btnText.textContent = 'Draw';
+                loading.style.display = 'none';
+            }
+        });
+        
+        // Auto-generate plot on page load with default parameters
+        window.addEventListener('load', function() {
+            document.getElementById('paramForm').dispatchEvent(new Event('submit'));
+        });
+    </script>
+</body>
+</html>
