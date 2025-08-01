@@ -4,7 +4,7 @@ from math import log, pi, sqrt
 from scipy.spatial import KDTree  # For efficient nearest neighbors
 
 # Tunable Parameters
-N = 10000  # Range of numbers to analyze (max n)
+N = 1000000  # Range of numbers to analyze (max n)
 K = 0.3  # Exponent from prime_curve's optimal k-sweep for Z scaling
 FREQ_BASE = 10 # Base frequency multiplier for sine wave
 EARTH_OMEGA = 26  # Earth's rotational frequency (rad/s) for cosmic tuning
